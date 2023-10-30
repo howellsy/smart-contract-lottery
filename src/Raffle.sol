@@ -33,7 +33,7 @@ contract Raffle is VRFConsumerBaseV2 {
     RaffleState private s_raffleState;
 
     event EnteredRaffle(address indexed player);
-    event RequestSent(uint256 indexed requestId, uint32 numWords);
+    event RequestedRaffleWinner(uint256 indexed requestId);
     event PickedWinner(address indexed winner);
 
     error Raffle__NotEnoughEthSent(uint256 required, uint256 sent);
@@ -98,7 +98,7 @@ contract Raffle is VRFConsumerBaseV2 {
             i_gasLane, i_subscriptionId, REQUEST_CONFIRMATIONS, i_callbackGasLimit, NUM_WORDS
         );
 
-        emit RequestSent(requestId, NUM_WORDS);
+        emit RequestedRaffleWinner(requestId);
     }
 
     function fulfillRandomWords(uint256, /* requestId */ uint256[] memory randomWords) internal override {
