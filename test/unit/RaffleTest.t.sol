@@ -3,9 +3,10 @@ pragma solidity ^0.8.18;
 
 import {DeployRaffle} from "../../script/DeployRaffle.s.sol";
 import {Raffle} from "../../src/Raffle.sol";
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {HelperConfig} from "../../script/HelperConfig.s.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {VRFCoordinatorV2Mock} from "@chainlink/contracts/src/v0.8/mocks/VRFCoordinatorV2Mock.sol";
 
 contract RaffleTest is Test {
     Raffle raffle;
@@ -128,5 +129,45 @@ contract RaffleTest is Test {
         bytes32 requestId = entries[1].topics[1];
         assert(uint256(requestId) > 0);
         assert(raffle.getRaffleState() == Raffle.RaffleState.CALCULATING_WINNER);
+    }
+
+    /**
+     * fulfillRandomWords
+     */
+    function testFulfilRandomWordsCanOnlyBeCalledAfterPerformUpkeep(uint256 randomRequestId)
+        public
+        raffleEnteredAndTimePassed
+    {
+        // expected error from VRFCoordinatorV2Mock
+        vm.expectRevert("nonexistent request");
+        // simulate Chainlink VRF Coordinator fulfilling the request with a random number
+        VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(randomRequestId, address(raffle));
+    }
+
+    function testFulfillRandomWordsPicksAWinnerResetsAndSendsMoney() public raffleEnteredAndTimePassed {
+        uint256 additionalEntrants = 5;
+        // 1 person has already entered the raffle via the modifier
+        uint256 startingIndex = 1;
+        for (uint256 i = startingIndex; i < startingIndex + additionalEntrants; i++) {
+            address player = address(uint160(i));
+            hoax(player, STARTING_USER_BALANCE);
+            raffle.enterRaffle{value: entranceFee}();
+        }
+
+        uint256 totalPrize = entranceFee * (additionalEntrants + 1);
+
+        vm.recordLogs();
+        raffle.performUpkeep("");
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bytes32 requestId = entries[1].topics[1];
+
+        // simulate Chainlink VRF Coordinator fulfilling the request with a random number
+        VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(uint256(requestId), address(raffle));
+
+        assert(raffle.getRaffleState() == Raffle.RaffleState.OPEN);
+        assert(raffle.getRecentWinner() != address(0));
+        assert(raffle.getNumberOfPlayers() == 0);
+        assert(raffle.getLastTimestamp() == block.timestamp);
+        assert(raffle.getRecentWinner().balance == STARTING_USER_BALANCE + totalPrize - entranceFee);
     }
 }
