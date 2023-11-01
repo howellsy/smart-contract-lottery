@@ -134,9 +134,17 @@ contract RaffleTest is Test {
     /**
      * fulfillRandomWords
      */
+    modifier skipOnFork() {
+        if (block.chainid != 31337) {
+            return;
+        }
+        _;
+    }
+
     function testFulfilRandomWordsCanOnlyBeCalledAfterPerformUpkeep(uint256 randomRequestId)
         public
         raffleEnteredAndTimePassed
+        skipOnFork
     {
         // expected error from VRFCoordinatorV2Mock
         vm.expectRevert("nonexistent request");
@@ -144,7 +152,7 @@ contract RaffleTest is Test {
         VRFCoordinatorV2Mock(vrfCoordinator).fulfillRandomWords(randomRequestId, address(raffle));
     }
 
-    function testFulfillRandomWordsPicksAWinnerResetsAndSendsMoney() public raffleEnteredAndTimePassed {
+    function testFulfillRandomWordsPicksAWinnerResetsAndSendsMoney() public raffleEnteredAndTimePassed skipOnFork {
         uint256 additionalEntrants = 5;
         // 1 person has already entered the raffle via the modifier
         uint256 startingIndex = 1;
